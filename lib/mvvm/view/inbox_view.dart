@@ -9,10 +9,11 @@ import '../../utils/logger_services.dart';
 import '../../utils/padding_extensions.dart';
 import '../../utils/sizedbox_extension.dart';
 import '../model/chat_meta_data_model.dart';
+import '../model/ui_models.dart';
 import '../view_models/chat_controller.dart';
 import '../../widgets/inbox_tile.dart';
 
-class InboxViewWidget extends StatelessWidget {
+class InboxViewWidget extends StatefulWidget {
 
 
   // ✅ Customizable UI parts
@@ -39,8 +40,22 @@ class InboxViewWidget extends StatelessWidget {
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
+  State<InboxViewWidget> createState() => _InboxViewWidgetState();
+}
+
+class _InboxViewWidgetState extends State<InboxViewWidget> {
+
     final ChatController controller = Get.find();
+
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    super.dispose();
+    controller.cancelInboxListener();
+
+  }
+  @override
+  Widget build(BuildContext context) {
 
     // Set inbox listeners once
     controller.setListeners();
@@ -51,31 +66,31 @@ class InboxViewWidget extends StatelessWidget {
         TextFormField(
           onTapOutside: (_) => FocusScope.of(context).unfocus(),
           textInputAction: TextInputAction.search,
-          cursorColor: searchFieldDecoration.cursorColor ?? AppColors.primary,
+          cursorColor: widget.searchFieldDecoration.cursorColor ?? AppColors.primary,
           onChanged:   (val) => controller.filterChats(val),  // ✅ Correct filtering,
           decoration: InputDecoration(
-            fillColor: searchFieldDecoration.fillColor ?? AppColors.scaffoldBgColor,
+            fillColor: widget.searchFieldDecoration.fillColor ?? AppColors.scaffoldBgColor,
             filled: true,
             prefixIcon: Icon(
               Icons.search,
-              color: searchFieldDecoration.prefixIconColor ?? AppColors.textLightBlack,
-              size: searchFieldDecoration.iconSize,
+              color: widget.searchFieldDecoration.prefixIconColor ?? AppColors.textLightBlack,
+              size: widget.searchFieldDecoration.iconSize,
             ).paddingFromAll(10.sp),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(searchFieldDecoration.borderRadius ?? 10.sp),
+              borderRadius: BorderRadius.circular(widget.searchFieldDecoration.borderRadius ?? 10.sp),
               borderSide: const BorderSide(color: AppColors.transparent),
             ),
-            hintText: searchFieldDecoration.hintText ?? 'Search inbox...',
-            hintStyle: searchFieldDecoration.hintTextStyle ??
+            hintText: widget.searchFieldDecoration.hintText ?? 'Search inbox...',
+            hintStyle: widget.searchFieldDecoration.hintTextStyle ??
                 AppTextStyles.customText16(
-                  color: searchFieldDecoration.hintTextColor ?? AppColors.textLightBlack,
+                  color: widget.searchFieldDecoration.hintTextColor ?? AppColors.textLightBlack,
                 ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(searchFieldDecoration.borderRadius ?? 10.sp),
+              borderRadius: BorderRadius.circular(widget.searchFieldDecoration.borderRadius ?? 10.sp),
               borderSide: const BorderSide(color: AppColors.transparent),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(searchFieldDecoration.borderRadius ?? 10.sp),
+              borderRadius: BorderRadius.circular(widget.searchFieldDecoration.borderRadius ?? 10.sp),
               borderSide: const BorderSide(color: AppColors.primary),
             ),
           ),
@@ -83,13 +98,13 @@ class InboxViewWidget extends StatelessWidget {
         Expanded(
           child: Obx(() {
             if (controller.isInboxLoading.value) {
-              return loadingWidget ?? const Center(child: CircularProgressIndicator());
+              return widget.loadingWidget ?? const Center(child: CircularProgressIndicator());
             }
-          
+
             final List<ChatMetadataModel> chats = List.from(controller.filteredChats);
-          
+
             // Sort chats by latest message time (optional)
-            if (autoSortByLatest) {
+            if (widget.autoSortByLatest) {
               chats.sort((a, b) {
                 final Timestamp? timeA = a.lastMessageTime;
                 final Timestamp? timeB = b.lastMessageTime;
@@ -99,10 +114,10 @@ class InboxViewWidget extends StatelessWidget {
                 return timeB.compareTo(timeA);
               });
             }
-          
+
             if (chats.isEmpty) {
               return Center(
-                child: emptyWidget ??
+                child: widget.emptyWidget ??
                     Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -116,27 +131,23 @@ class InboxViewWidget extends StatelessWidget {
                 ),
               );
             }
-          
-            return GetBuilder<ChatController>(
-              builder: (_) {
-                return ListView.builder(
-                  shrinkWrap: shrinkWrap,
-                  physics: physics ?? const BouncingScrollPhysics(),
-                  padding: padding ?? EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
-                  itemCount: chats.length,
-                  itemBuilder: (context, index) {
-                    final chat = chats[index];
-                    if (customTileBuilder != null) {
-                      return customTileBuilder!(context, index, chat).paddingBottom(10.h);
-                    }
-                    return   InboxTile(
-                      index: index,
-                      chatMetadataModel: chat,
-                      onTap: (String id , String? userName, String? profileUrl) {
-                      onTileTap(id , userName , profileUrl);
-                    }, decoration: InboxTileDecoration(),).paddingBottom(10.h);
-                  },
-                );
+
+            return ListView.builder(
+              shrinkWrap: widget.shrinkWrap,
+              physics: widget.physics ?? const BouncingScrollPhysics(),
+              padding: widget.padding ?? EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+              itemCount: chats.length,
+              itemBuilder: (context, index) {
+                final chat = chats[index];
+                if (widget.customTileBuilder != null) {
+                  return widget.customTileBuilder!(context, index, chat).paddingBottom(10.h);
+                }
+                return   InboxTile(
+                  index: index,
+                  chatMetadataModel: chat,
+                  onTap: (String id , String? userName, String? profileUrl) {
+                  widget.onTileTap(id , userName , profileUrl);
+                }, decoration: InboxTileDecoration(),).paddingBottom(10.h);
               },
             );
           }),
@@ -146,26 +157,4 @@ class InboxViewWidget extends StatelessWidget {
   }
 }
 
-class SearchFieldDecoration {
-  final Color? backgroundColor;
-  final Color? fillColor;
-  final Color? cursorColor;
-  final Color? prefixIconColor;
-  final Color? hintTextColor;
-  final double? iconSize;
-  final double? borderRadius;
-  final TextStyle? hintTextStyle;
-  final String? hintText;
 
-  const SearchFieldDecoration({
-    this.backgroundColor,
-    this.fillColor,
-    this.cursorColor,
-    this.prefixIconColor,
-    this.hintTextColor,
-    this.iconSize,
-    this.borderRadius,
-    this.hintTextStyle,
-    this.hintText,
-  });
-}

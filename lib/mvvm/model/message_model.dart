@@ -13,7 +13,10 @@ class MessageModel {
   final String messageId;
   final dynamic messageSendTime;
   final List<ReactionModel> reactions;
-  final List<MessageFileModel> messageFiles;  // ✅ New field
+  final List<MessageFileModel> messageFiles;
+
+  /// 🔄 Local-only field (not stored in Firestore)
+  final bool? isSending;
 
   const MessageModel({
     required this.messageBody,
@@ -24,7 +27,8 @@ class MessageModel {
     required this.messageSendTime,
     required this.messageId,
     this.reactions = const [],
-    this.messageFiles = const [],  // ✅ Default empty list
+    this.messageFiles = const [],
+    this.isSending = false, // ✅ Default to false
   });
 
   factory MessageModel.fromJson(Map<String, dynamic> json) => MessageModel(
@@ -41,6 +45,8 @@ class MessageModel {
     messageFiles: (json['messageFiles'] as List<dynamic>? ?? [])
         .map((e) => MessageFileModel.fromJson(e as Map<String, dynamic>))
         .toList(),
+    // 👇 Local use only — ignore if not present in Firestore
+    isSending: json['isSending'] ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +59,7 @@ class MessageModel {
     'messageId': messageId,
     'reactions': reactions.map((e) => e.toJson()).toList(),
     'messageFiles': messageFiles.map((e) => e.toJson()).toList(),
+    // ❌ Do NOT include `isSending` in Firestore
   };
 
   MessageModel copyWith({
@@ -65,6 +72,7 @@ class MessageModel {
     String? messageId,
     List<ReactionModel>? reactions,
     List<MessageFileModel>? messageFiles,
+    bool? isSending,
   }) =>
       MessageModel(
         messageBody: messageBody ?? this.messageBody,
@@ -76,6 +84,7 @@ class MessageModel {
         messageId: messageId ?? this.messageId,
         reactions: reactions ?? this.reactions,
         messageFiles: messageFiles ?? this.messageFiles,
+        isSending: isSending ?? this.isSending,
       );
 
   @override
@@ -90,7 +99,8 @@ class MessageModel {
               other.messageSendTime == messageSendTime &&
               other.messageId == messageId &&
               other.reactions == reactions &&
-              other.messageFiles == messageFiles;
+              other.messageFiles == messageFiles &&
+              other.isSending == isSending;
 
   @override
   int get hashCode => Object.hash(
@@ -103,8 +113,10 @@ class MessageModel {
     messageId,
     reactions,
     messageFiles,
+    isSending,
   );
 }
+
 
 class MessageFileModel {
   final String name;

@@ -38,18 +38,19 @@ class ChatController extends GetxController {
 
 
   RxBool forwardLoader = false.obs;
+  RxBool updating = false.obs;
 
   RxBool isScrolled = false.obs;
   FireBaseUserModel? userModel;
   TextEditingController messageController = TextEditingController();
   TextEditingController priceController = TextEditingController();
   Map<String, dynamic>? userDataMap;
-  String senderId = '';
+  RxString senderId = ''.obs;
   Rx<File?> rXfile = Rx<File?>(null);
   RxList<File>? files = RxList<File>([]);
   RxList groupMembers = [].obs;
   final ImagePicker picker = ImagePicker();
-  final Logger _logger = Logger(); // Updated to use packer Logger
+  final Logger LoggerService = Logger(); // Updated to use packer Logger
   final List<String> videoExtensions = ['.mp4'];
   final List<String> videoExtensionsForPicker = ['mp4'];
 
@@ -66,10 +67,12 @@ class ChatController extends GetxController {
   final RxString searchQuery = ''.obs;
 
   StreamSubscription? _unreadSubscription;
+  StreamSubscription<List<ChatMetadataModel>>? _inboxSubscription;
+
 
   final RxMap<String, FireBaseUserModel?> userCache = <String, FireBaseUserModel?>{}.obs;
 
-  final RxList<MessageModel> messages = <MessageModel>[].obs;
+  final RxList<MessageModel> messagesList = <MessageModel>[].obs;
 
   final RxString selectedMessageId = ''.obs;
   final FocusNode messageFieldFocusNode = FocusNode();
@@ -117,7 +120,7 @@ class ChatController extends GetxController {
       );
       cancelEditing(); // Clear after update
     } catch (e) {
-      _logger.e('Error updating message: $e'); // Updated logger method
+      LoggerService.e('Error updating message: $e'); // Updated logger method
       // Optionally handle error
     }
   }
@@ -139,7 +142,7 @@ class ChatController extends GetxController {
       );
       cancelEditing(); // Clear after update
     } catch (e) {
-      _logger.e('Error updating message: $e'); // Updated logger method
+      LoggerService.e('Error updating message: $e'); // Updated logger method
       // Optionally handle error
     }
   }
@@ -155,8 +158,8 @@ class ChatController extends GetxController {
   }
 
   FireBaseUserModel? getCachedUser(ChatMetadataModel chat) {
-    _logger.i(userCache); // Updated logger method
-    final otherMember = chat.members.firstWhereOrNull((m) => m.id != senderId);
+    LoggerService.i(userCache); // Updated logger method
+    final otherMember = chat.members.firstWhereOrNull((m) => m.id != senderId.value);
     final otherUserId = otherMember?.id ?? '';
 
     if (otherUserId.isEmpty) return null;
@@ -164,10 +167,12 @@ class ChatController extends GetxController {
     return userCache[otherUserId];
   }
 
+
   void listenToMessages(String chatBoxId) {
+    messagesList.clear();
     ChatRepo.getOrderedChatsModelList(chatBoxId).listen((messageList) {
-      messages.assignAll(messageList);
-      update();
+      messagesList.assignAll(messageList);
+      // update();
     });
   }
 
@@ -200,8 +205,11 @@ class ChatController extends GetxController {
   }
 
   Future<void> saveUserId({required String userId}) async {
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('userAppId', userId);
+    senderId.value =  userId;
+    LoggerService.w('User App Id saved $userId');
     LoggerService.i(prefs.getString('userAppId')); // Logging for debug
   }
 
@@ -213,7 +221,7 @@ class ChatController extends GetxController {
       }
     });
 
-    senderId = await getUserId();
+    senderId.value = await getUserId();
     update();
   }
 
@@ -247,7 +255,7 @@ class ChatController extends GetxController {
 
   bool isLinkMessage(String messageBody) {
     final linkPattern = RegExp(r'https?:\/\/[^\s]+', caseSensitive: false);
-    _logger.d(linkPattern.hasMatch(messageBody)); // Updated logger method
+    LoggerService.d(linkPattern.hasMatch(messageBody)); // Updated logger method
     return linkPattern.hasMatch(messageBody);
   }
 
@@ -274,7 +282,7 @@ class ChatController extends GetxController {
       try {
 
         // Check Username match
-        final otherMember = chat.members.firstWhereOrNull((m) => m.id != senderId);
+        final otherMember = chat.members.firstWhereOrNull((m) => m.id != senderId.value);
         final otherUser = otherMember != null ? userCache[otherMember.id] : null;
         final otherUserName = otherUser?.userName?.toLowerCase() ?? '';
         final userNameMatch = otherUserName.contains(query.toLowerCase());
@@ -294,21 +302,21 @@ class ChatController extends GetxController {
     try {
       isInboxLoading.value = true;
 
-      getUserInboxStream().listen((chatList) async {
+      _inboxSubscription = getUserInboxStream().listen((chatList) async {
         allChats.assignAll(chatList);
         filteredChats.assignAll(chatList);
 
         // Fetch and cache user names in background
         for (var chat in chatList) {
           for (var member in chat.members) {
-            if (member.id != senderId && !userCache.containsKey(member.id)) {
+            if (member.id != senderId.value && !userCache.containsKey(member.id)) {
               await getOtherUserData(member.id);
             }
           }
         }
 
         isInboxLoading.value = false;
-        _logger.v('Inbox updated$allChats'); // Updated logger method
+        LoggerService.v('Inbox updated$allChats');
         update();
       });
     } catch (e) {
@@ -321,8 +329,14 @@ class ChatController extends GetxController {
     }
   }
 
+  void cancelInboxListener() {
+    _inboxSubscription?.cancel();
+    _inboxSubscription = null;
+  }
+
+
   String getChatBoxId(String recipientId) {
-    List<String> sortedIds = [senderId, recipientId]..sort();
+    List<String> sortedIds = [senderId.value, recipientId]..sort();
     return sortedIds.join('_');
   }
 
@@ -338,7 +352,7 @@ class ChatController extends GetxController {
     Get.toNamed(
       route,
       arguments: ChatViewArguments(
-          currentUserId: senderId,
+          currentUserId: senderId.value,
           chatBoxId: lChatBoxId,
           receiverId: receiverId,
           userName: userName,
@@ -369,7 +383,7 @@ class ChatController extends GetxController {
         }
 
         String extension = fPath.extension(file.path).toLowerCase();
-        _logger.d('Sending file ${file.path}'); // Updated logger method
+        LoggerService.d('Sending file ${file.path}'); // Updated logger method
         final storageRef = FirebaseStorage.instance
             .ref('UserChatFiles/$chatBoxId/$messageId/${fPath.basename(file.path)}');
         await storageRef.putFile(file);
@@ -388,22 +402,22 @@ class ChatController extends GetxController {
       files.clear();
       return uploadedFiles;
     } catch (e) {
-      _logger.e(e); // Updated logger method
+      LoggerService.e(e); // Updated logger method
       return null;
     }
   }
 
-  Future<void> sendChatWithImageMessage(
-      {required String chatBoxId, required String recipientId}) async
+  Future<void> sendChatWithImageMessage({
+    required String chatBoxId,
+    required String recipientId,
+  }) async
   {
-    loader.value = true;
     try {
-      loader.value = true;
-      String messageId = '${DateTime.now().millisecondsSinceEpoch}${Random().nextInt(1000)}';
+      // Guard clause — do not proceed if empty
+      final trimmedText = messageController.text.trim();
+      final isFileEmpty = files == null || files!.isEmpty;
 
-      // Guard Clause — Prevent Empty Message and No Files
-      if ((files == null || (files ?? []).isEmpty) &&
-          messageController.text.trim().isEmpty) {
+      if (isFileEmpty && trimmedText.isEmpty) {
         CustomSnackbar.show(
           title: 'Empty Message',
           message: 'Please enter a message or attach a file',
@@ -412,37 +426,68 @@ class ChatController extends GetxController {
         return;
       }
 
+      final currentTimestamp = Timestamp.now();
+      final messageId = '${DateTime.now().millisecondsSinceEpoch}${Random().nextInt(1000)}';
+      final tempMessageId = 'temp_$messageId';
+      scrollToBottom();
+
+      // Predict message type for shimmer
+      String predictedMessageType = MessageType.text.name;
+      if (!isFileEmpty) {
+        predictedMessageType = MessageType.file.name;
+      }
+
+
+
+      // Insert temporary local message to UI
+      if (!isFileEmpty) {
+        MessageModel tempMessage = MessageModel(
+          messageId: tempMessageId,
+          messageBody: trimmedText,
+          messageSenderId: senderId.value,
+          isSending: true,
+          messageReceiverId: recipientId,
+          messageSendTime: Timestamp.now(),
+          readStatus: ReadStatues.unread.name,
+          messageType: predictedMessageType, // Make sure this is correct (image, file, video)
+          messageFiles: [], // Can fill this if you want shimmer placeholders
+          reactions: [],
+        );
+
+        messagesList.add(tempMessage);
+        print("✅ Shimmer placeholder message added to UI ${tempMessage.isSending}");
+      }
+
+      loader.value = !isFileEmpty; // Only show loader for media
+
+      // Upload files if any
       List<MessageFileModel> uploadedFiles = [];
-      if (files != null && (files ?? []).isNotEmpty) {
+      if (!isFileEmpty) {
         uploadedFiles = await _sendFiles(
-            messageId: messageId, files: files!, chatBoxId: chatBoxId) ??
+          messageId: messageId,
+          files: files!,
+          chatBoxId: chatBoxId,
+        ) ??
             [];
       }
 
-      // Consistent Timestamp for everything
-      final currentTimestamp = Timestamp.now();
-
+      // Determine final message type after upload
       String finalMessageType = MessageType.text.name;
-
       if (uploadedFiles.isNotEmpty) {
         final ext = fPath.extension(uploadedFiles.first.name).toLowerCase();
-        _logger.v('First File is $ext'); // Updated logger method
-
         if (ext == '.mp4') {
           finalMessageType = MessageType.video.name;
-        } else if (documentExtensions.contains(ext.toLowerCase())) {
+        } else if (documentExtensions.contains(ext)) {
           finalMessageType = MessageType.file.name;
-
-        }
-        else {
+        } else {
           finalMessageType = MessageType.image.name;
         }
       }
 
-      final MessageModel message = MessageModel(
-        messageBody: messageController.text.trim(),
+      final message = MessageModel(
+        messageBody: trimmedText,
         messageType: finalMessageType,
-        messageSenderId: senderId,
+        messageSenderId: senderId.value,
         messageReceiverId: recipientId,
         readStatus: ReadStatues.unread.name,
         messageSendTime: FieldValue.serverTimestamp(),
@@ -451,41 +496,52 @@ class ChatController extends GetxController {
         reactions: [],
       );
 
-      if (uploadedFiles.isNotEmpty || message.messageBody.isNotEmpty) {
-        final metaData = ChatMetadataModel(
-          chatId: chatBoxId,
-          chatType: 'direct',
-          members: [
-            ChatMemberModel(
-                id: senderId, role: ChatRole.member, joinedAt: currentTimestamp),
-            ChatMemberModel(
-                id: recipientId, role: ChatRole.member, joinedAt: currentTimestamp),
-          ],
-          lastMessage: message.messageBody.isNotEmpty
-              ? message.messageBody
-              : (uploadedFiles.isNotEmpty ? uploadedFiles.first.name : 'File'),
-          lastMessageTime: currentTimestamp,
-        );
+      final metaData = ChatMetadataModel(
+        chatId: chatBoxId,
+        chatType: 'direct',
+        members: [
+          ChatMemberModel(
+            id: senderId.value,
+            role: ChatRole.member,
+            joinedAt: currentTimestamp,
+          ),
+          ChatMemberModel(
+            id: recipientId,
+            role: ChatRole.member,
+            joinedAt: currentTimestamp,
+          ),
+        ],
+        lastMessage: trimmedText.isNotEmpty
+            ? trimmedText
+            : (uploadedFiles.isNotEmpty ? uploadedFiles.first.name : 'File'),
+        lastMessageTime: currentTimestamp,
+      );
 
-        await ChatRepo.batchWriteMessageAndMetadata(
-            chatBoxId: chatBoxId,
-            messageId: messageId,
-            messageData: message,
-            metaData: metaData);
-      }
+      await ChatRepo.batchWriteMessageAndMetadata(
+        chatBoxId: chatBoxId,
+        messageId: messageId,
+        messageData: message,
+        metaData: metaData,
+      );
 
+      // Remove the temp message from local list
+      messagesList.removeWhere((m) => m.messageId == tempMessageId);
+
+      // Clear input
       rXfile.value = null;
       messageController.clear();
     } catch (e) {
-      _logger.e('Error sending message: $e'); // Updated logger method
+      LoggerService.e('Error sending message: $e');
       CustomSnackbar.show(
-          title: 'Ops! Error occurred',
-          message: 'Failed to send message',
-          messageText: ['Failed to send message']);
+        title: 'Oops! Error occurred',
+        message: 'Failed to send message',
+        messageText: ['Failed to send message'],
+      );
     } finally {
       loader.value = false;
     }
   }
+
 
 
   Future<void> forwardMessage(
@@ -500,7 +556,7 @@ class ChatController extends GetxController {
       final MessageModel message = MessageModel(
         messageBody: messageModel.messageBody,
         messageType: messageModel.messageType,
-        messageSenderId: senderId,
+        messageSenderId: senderId.value,
         messageReceiverId: recipientId,
         readStatus: ReadStatues.unread.name,
         messageSendTime: FieldValue.serverTimestamp(),
@@ -515,7 +571,7 @@ class ChatController extends GetxController {
           chatType: 'direct',
           members: [
             ChatMemberModel(
-                id: senderId, role: ChatRole.member, joinedAt: currentTimestamp),
+                id: senderId.value, role: ChatRole.member, joinedAt: currentTimestamp),
             ChatMemberModel(
                 id: recipientId, role: ChatRole.member, joinedAt: currentTimestamp),
           ],
@@ -533,13 +589,25 @@ class ChatController extends GetxController {
       }
 
     } catch (e) {
-      _logger.e('Error forwarding message: $e'); // Updated logger method
+      LoggerService.e('Error forwarding message: $e'); // Updated logger method
       CustomSnackbar.show(
           title: 'Ops! Error occurred',
           message: 'Failed to forward message',
           messageText: ['Failed to forward message']);
     } finally {
       forwardLoader.value = false;
+    }
+  }
+
+ Future<bool> updateFirebaseUser(FireBaseUserModel userDataModel) async {
+    try {
+      ChatRepo.updateUserDataOnFirebase( userDataModel: userDataModel);
+      return true;
+    } on FirebaseAuthException catch (e) {
+
+      CustomSnackbar.showError(title: 'Login Failed' , messageList: ['Error occur ${e.message}']);
+      LoggerService.e(e.message);
+      return false;
     }
   }
 
@@ -559,19 +627,19 @@ class ChatController extends GetxController {
         result.files.where((file) => file.path != null).map((file) => File(file.path!)).toList();
 
         files?.value = pickedFiles;
-        _logger.w("Files: $files"); // Updated logger method
+        LoggerService.w("Files: $files"); // Updated logger method
         return pickedFiles;
       }
 
       return [];
     } catch (e) {
-      _logger.e('Error picking documents: $e'); // Updated logger method
+      LoggerService.e('Error picking documents: $e'); // Updated logger method
       return [];
     }
   }
-  
+
   Future<List<FireBaseUserModel>> getAllUsersofFB()async{
-    return await ChatRepo.getAllFireBaseUsers(senderId);
+    return await ChatRepo.getAllFireBaseUsers(senderId.value);
   }
 
   Future<void> downloadFile(
@@ -586,7 +654,7 @@ class ChatController extends GetxController {
           CustomSnackbar.show(
             title: 'Permission Denied',
             message: 'Storage permission is required to download the file',
-            messageText: ['Storage permission is required'],
+            messageText: ['Storage permission is required to download the file',],
           );
           loader.value = false;
           return;
@@ -614,9 +682,9 @@ class ChatController extends GetxController {
         message: 'File saved to Downloads',
         messageText: ['Saved: $sanitizedFileName'],
       );
-      _logger.i('File downloaded to: $filePath');
+      LoggerService.i('File downloaded to: $filePath');
     } catch (e) {
-      _logger.e('Error downloading file: $e');
+      LoggerService.e('Error downloading file: $e');
       CustomSnackbar.show(
         title: 'Download Failed',
         message: 'Could not download file',
@@ -652,17 +720,17 @@ class ChatController extends GetxController {
         required String messageId,
         required String messageSenderId}) async {
     try {
-      if (senderId != messageSenderId) {
+      if (senderId.value != messageSenderId) {
         await ChatRepo.updateReadStatus(chatBoxId, messageId, ReadStatues.read.name);
       }
     } catch (e) {
-      _logger.e('Error updating read status: $e'); // Updated logger method
+      LoggerService.e('Error updating read status: $e'); // Updated logger method
     }
   }
 
   Stream<List<ChatMetadataModel>> getUserInboxStream() {
-    if (senderId.isEmpty) return const Stream.empty();
-    return ChatRepo.getUserInbox(senderId);
+    if (senderId.value.isEmpty) return const Stream.empty();
+    return ChatRepo.getUserInbox(senderId.value);
   }
 
 
@@ -676,7 +744,7 @@ class ChatController extends GetxController {
       userCache[userId] = user!=null ? user : null;
       return userCache[userId];
     } catch (e) {
-      _logger.e('Failed to get user info: $e');
+      LoggerService.e('Failed to get user info: $e');
       return null;
     }
   }
@@ -688,12 +756,12 @@ class ChatController extends GetxController {
       final XFile? pickedFile = await picker.pickImage(source: imageSource);
       if (pickedFile != null) {
         files?.add(File(pickedFile.path));
-        _logger.w("Files: $files"); // Updated logger method
+        LoggerService.w("Files: $files"); // Updated logger method
         return true;
       }
       return false;
     } catch (e) {
-      _logger.e('Error picking image: $e'); // Updated logger method
+      LoggerService.e('Error picking image: $e'); // Updated logger method
       return false;
     }
   }

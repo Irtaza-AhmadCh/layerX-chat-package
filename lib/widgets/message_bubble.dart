@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:layerx_fire_chat/utils/logger_services.dart';
 import 'package:layerx_fire_chat/utils/sizedbox_extension.dart';
 import 'package:layerx_fire_chat/utils/utils.dart';
 import 'package:logger/logger.dart';
@@ -75,6 +76,12 @@ class _MessageBubbleState extends State<MessageBubble> {
   }
 
   Widget content() {
+    if (widget.message.isSending ?? false) {
+      LoggerService.wtf('Local Message');
+      return const MediaLoaderMessageWidget();
+    }
+
+
     if (widget.message.messageType == MessageType.text.name.toString()) {
       if (widget.controller.isLinkMessage(widget.message.messageBody)) {
         return LinkMessageWidget(message: widget.message);
@@ -114,7 +121,7 @@ class _MessageBubbleState extends State<MessageBubble> {
     final double maxWidthFactor = widget.decoration.maxBubbleWidthFactor ?? 0.66;
 
     return Obx(() {
-      bool isMe = widget.message.messageSenderId == widget.controller.senderId;
+      bool isMe = widget.message.messageSenderId == widget.controller.senderId.value;
       bool isSelected = widget.controller.isSelected(widget.message.messageId); // <- must be inside
 
       return GestureDetector(

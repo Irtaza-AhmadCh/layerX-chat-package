@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:layerx_fire_chat/utils/padding_extensions.dart';
 import 'package:layerx_fire_chat/utils/sizedbox_extension.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_link_previewer/flutter_link_previewer.dart';
@@ -322,3 +323,23 @@ class _LinkMessageWidgetState extends State<LinkMessageWidget> {
   }
 }
 
+
+class MediaLoaderMessageWidget extends StatelessWidget {
+  const MediaLoaderMessageWidget({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        height: 180.h,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(16.sp),
+        ),
+      ),
+    );
+  }
+}

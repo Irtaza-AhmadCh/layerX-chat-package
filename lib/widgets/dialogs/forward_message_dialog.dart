@@ -5,6 +5,7 @@ import 'package:layerx_fire_chat/utils/app_colors.dart';
 import 'package:layerx_fire_chat/utils/padding_extensions.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../mvvm/model/ui_models.dart';
 import '../../utils/app_text_style.dart';
 import '../inbox_tile.dart';
 

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:layerx_fire_chat/utils/logger_services.dart';
 import 'package:layerx_fire_chat/utils/padding_extensions.dart';
 import 'package:layerx_fire_chat/utils/sizedbox_extension.dart';
 import 'package:shimmer/shimmer.dart';
 import '../mvvm/model/chat_meta_data_model.dart';
+import '../mvvm/model/ui_models.dart';
 import '../mvvm/view_models/chat_controller.dart';
 import '../utils/app_colors.dart';
 import '../utils/app_text_style.dart';
@@ -73,8 +75,9 @@ class InboxTile extends StatelessWidget {
       ],
       child: GestureDetector(
         onTap: () {
-          final otherMember = chatMetadataModel.members.firstWhereOrNull((m) => m.id != controller.senderId);
-          final otherUserId = otherMember?.id ?? '';
+
+          final otherUserId = user?.userAppId ?? '';
+          LoggerService.i("Inbox id $otherUserId");
           onTap(otherUserId ,  userName ,  userImage );
         },
         child: Column(
@@ -146,26 +149,3 @@ class InboxTile extends StatelessWidget {
 }
 
 
-class InboxTileDecoration {
-  final double? height;
-  final double? imageSize;
-  final double? borderRadius;
-  final double? padding;
-  final Color? backgroundColor;
-  final TextStyle? userNameStyle;
-  final TextStyle? jobIdStyle;
-  final TextStyle? messageStyle;
-  final TextStyle? timeStyle;
-
-  const InboxTileDecoration({
-    this.height,
-    this.imageSize,
-    this.borderRadius,
-    this.padding,
-    this.backgroundColor,
-    this.userNameStyle,
-    this.jobIdStyle,
-    this.messageStyle,
-    this.timeStyle,
-  });
-}

@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:layerx_fire_chat/utils/logger_services.dart';
 import 'package:logger/logger.dart';
 import 'package:path/path.dart' as fPath;
 import 'package:path_provider/path_provider.dart';
@@ -27,7 +28,7 @@ import '../mvvm/model/firebase_user_model.dart';
 import '../mvvm/model/message_model.dart';
 
 class ChatRepo {
-  static final Logger _logger = Logger();
+  static final Logger LoggerService = Logger();
 
 
   static String generateChatBoxIdTwo(String userId, String recipientId, String dId) {
@@ -59,7 +60,7 @@ class ChatRepo {
 
       await batch.commit();
     } catch (e) {
-      _logger.e('Failed to batch write message and metadata: $e');
+      LoggerService.e('Failed to batch write message and metadata: $e');
       rethrow;
     }
   }
@@ -79,7 +80,7 @@ class ChatRepo {
           .doc(chatBoxId)
           .set(metaDataModel.toJson());
     } catch (e) {
-      _logger.e('Failed to write metadata: $e');
+      LoggerService.e('Failed to write metadata: $e');
       rethrow;
     }
   }
@@ -91,7 +92,7 @@ class ChatRepo {
           .doc(chatBoxId)
           .update(data);
     } catch (e) {
-      _logger.e('Failed to update metadata: $e');
+      LoggerService.e('Failed to update metadata: $e');
       rethrow;
     }
   }
@@ -124,7 +125,7 @@ class ChatRepo {
           .doc(messageId)
           .update(updatedData);
     } catch (e) {
-      _logger.e('Failed to update message: $e');
+      LoggerService.e('Failed to update message: $e');
       rethrow;
     }
   }
@@ -136,7 +137,18 @@ class ChatRepo {
           .doc(userDataModel.userAppId)
           .set(userDataModel.toJson());
     } catch (e) {
-      _logger.e('Failed to add user data: $e');
+      LoggerService.e('Failed to add user data: $e');
+      rethrow;
+    }
+  }
+  static Future<void> updateUserDataOnFirebase({required FireBaseUserModel userDataModel}) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(userDataModel.userAppId)
+          .update(userDataModel.toJson());
+    } catch (e) {
+      LoggerService.e('Failed to update user data: $e');
       rethrow;
     }
   }
@@ -145,7 +157,7 @@ class ChatRepo {
     try {
       await FirebaseFirestore.instance.collection('Users').doc(userId).delete();
     } catch (e) {
-      _logger.e('Failed to delete user account: $e');
+      LoggerService.e('Failed to delete user account: $e');
       rethrow;
     }
   }
@@ -182,7 +194,7 @@ class ChatRepo {
       final snap = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
       return snap.exists ? FireBaseUserModel.fromJson(snap.data()!) : null;
     } catch (e) {
-      _logger.e('Failed to get user data: $e');
+      LoggerService.e('Failed to get user data: $e for id $userId');
       return null;
     }
   }
@@ -195,7 +207,7 @@ class ChatRepo {
           .where((u) => u.userAppId != currentUserId)
           .toList();
     } catch (e) {
-      _logger.e('Failed to get all users: $e');
+      LoggerService.e('Failed to get all users: $e');
       return [];
     }
   }
@@ -209,7 +221,7 @@ class ChatRepo {
           .doc(messageId)
           .update({'readStatus': newStatus});
     } catch (e) {
-      _logger.e('Failed to update read status: $e');
+      LoggerService.e('Failed to update read status: $e');
       rethrow;
     }
   }
@@ -227,7 +239,7 @@ class ChatRepo {
       })
           .debounceTime(Duration(milliseconds: 500));
     } catch (e) {
-      _logger.e('Error fetching inbox: $e');
+      LoggerService.e('Error fetching inbox: $e');
       return const Stream.empty();
     }
   }
